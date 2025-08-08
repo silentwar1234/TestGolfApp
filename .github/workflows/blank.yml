@@ -1,5 +1,3 @@
-bootstrap.yml
-name: Bootstrap repo
 on:
   workflow_dispatch:
 
