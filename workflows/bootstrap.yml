@@ -72,3 +72,1192 @@ jobs:
 
           cat > README.md <<'EOF'
           GolfTracker monorepo (ASP.NET Core 8 + EF Core Postgres + SignalR + React + MapLibre + Mapillary)
+
+          Quick start
+          1) Requirements: .NET 8 SDK, Node 18+, npm, Docker
+          2) Start DB:
+             docker compose up -d
+          3) Backend:
+             cd server/GolfTracker.Api
+             dotnet ef database update
+             dotnet run
+             API runs on http://localhost:5000
+          4) Frontend:
+             cd web
+             cp .env.example .env
+             npm run dev
+             SPA runs on http://localhost:5173
+
+          Env
+          - API: server/GolfTracker.Api/appsettings.Development.json
+          - Frontend: web/.env
+          - DB: docker-compose.yml
+
+          Migrations
+          - cd server/GolfTracker.Api
+          - dotnet ef migrations add <Name> --project ../GolfTracker.Infrastructure --startup-project .
+          - dotnet ef database update --project ../GolfTracker.Infrastructure --startup-project .
+          EOF
+
+          dotnet new sln -n "$SOLUTION_NAME"
+
+          dotnet new webapi -n GolfTracker.Api -o server/GolfTracker.Api --no-https
+          dotnet new classlib -n GolfTracker.Domain -o server/GolfTracker.Domain
+          dotnet new classlib -n GolfTracker.Infrastructure -o server/GolfTracker.Infrastructure
+
+          dotnet sln add server/GolfTracker.Api/GolfTracker.Api.csproj
+          dotnet sln add server/GolfTracker.Domain/GolfTracker.Domain.csproj
+          dotnet sln add server/GolfTracker.Infrastructure/GolfTracker.Infrastructure.csproj
+
+          dotnet add server/GolfTracker.Api/GolfTracker.Api.csproj reference server/GolfTracker.Infrastructure/GolfTracker.Infrastructure.csproj
+          dotnet add server/GolfTracker.Infrastructure/GolfTracker.Infrastructure.csproj reference server/GolfTracker.Domain/GolfTracker.Domain.csproj
+
+          dotnet add server/GolfTracker.Domain/GolfTracker.Domain.csproj package Microsoft.AspNetCore.Identity
+          dotnet add server/GolfTracker.Infrastructure/GolfTracker.Infrastructure.csproj package Microsoft.EntityFrameworkCore
+          dotnet add server/GolfTracker.Infrastructure/GolfTracker.Infrastructure.csproj package Npgsql.EntityFrameworkCore.PostgreSQL
+          dotnet add server/GolfTracker.Infrastructure/GolfTracker.Infrastructure.csproj package Microsoft.AspNetCore.Identity.EntityFrameworkCore
+          dotnet add server/GolfTracker.Infrastructure/GolfTracker.Infrastructure.csproj package Microsoft.EntityFrameworkCore.Tools
+          dotnet add server/GolfTracker.Api/GolfTracker.Api.csproj package Microsoft.AspNetCore.Authentication.JwtBearer
+          dotnet add server/GolfTracker.Api/GolfTracker.Api.csproj package Swashbuckle.AspNetCore
+          dotnet add server/GolfTracker.Api/GolfTracker.Api.csproj package Microsoft.EntityFrameworkCore.Design
+
+          cat > server/GolfTracker.Domain/Entities.cs <<'EOF'
+          using Microsoft.AspNetCore.Identity;
+
+          namespace GolfTracker.Domain;
+
+          public class AppUser : IdentityUser<Guid>
+          {
+              public Profile Profile { get; set; } = null!;
+              public ICollection<GroupMembership> Memberships { get; set; } = new List<GroupMembership>();
+              public ICollection<UserAchievement> Achievements { get; set; } = new List<UserAchievement>();
+          }
+
+          public class AppRole : IdentityRole<Guid> { }
+
+          public class Profile
+          {
+              public Guid Id { get; set; }
+              public Guid UserId { get; set; }
+              public AppUser User { get; set; } = null!;
+              public string DisplayName { get; set; } = "";
+              public string AvatarUrl { get; set; } = "";
+              public bool ShareLocation { get; set; } = false;
+              public string Units { get; set; } = "yards";
+              public double? LastLat { get; set; }
+              public double? LastLng { get; set; }
+              public DateTimeOffset? LastLocationAt { get; set; }
+          }
+
+          public class Course
+          {
+              public Guid Id { get; set; }
+              public string Name { get; set; } = "";
+              public string? OSMId { get; set; }
+              public double CenterLat { get; set; }
+              public double CenterLng { get; set; }
+              public int? Par { get; set; }
+              public int? HoleCount { get; set; }
+              public int? TotalYardage { get; set; }
+              public ICollection<Hole> Holes { get; set; } = new List<Hole>();
+              public string? City { get; set; }
+              public string? Country { get; set; }
+              public string? Website { get; set; }
+          }
+
+          public class Hole
+          {
+              public Guid Id { get; set; }
+              public Guid CourseId { get; set; }
+              public Course Course { get; set; } = null!;
+              public int Number { get; set; }
+              public int Par { get; set; }
+              public int Yardage { get; set; }
+              public int? Handicap { get; set; }
+          }
+
+          public class Round
+          {
+              public Guid Id { get; set; }
+              public Guid UserId { get; set; }
+              public AppUser User { get; set; } = null!;
+              public Guid CourseId { get; set; }
+              public Course Course { get; set; } = null!;
+              public DateTimeOffset StartedAt { get; set; }
+              public DateTimeOffset? FinishedAt { get; set; }
+              public ICollection<RoundHoleScore> Scores { get; set; } = new List<RoundHoleScore>();
+              public int? TotalScore { get; set; }
+              public int? PuttsTotal { get; set; }
+              public bool Walked { get; set; }
+          }
+
+          public class RoundHoleScore
+          {
+              public Guid Id { get; set; }
+              public Guid RoundId { get; set; }
+              public Round Round { get; set; } = null!;
+              public int HoleNumber { get; set; }
+              public int Strokes { get; set; }
+              public int? Putts { get; set; }
+              public bool FairwayHit { get; set; }
+              public bool Gir { get; set; }
+          }
+
+          public class Group
+          {
+              public Guid Id { get; set; }
+              public string Name { get; set; } = "";
+              public string Description { get; set; } = "";
+              public double? HomeLat { get; set; }
+              public double? HomeLng { get; set; }
+              public Guid OwnerId { get; set; }
+              public AppUser Owner { get; set; } = null!;
+              public ICollection<GroupMembership> Members { get; set; } = new List<GroupMembership>();
+          }
+
+          public enum GroupRole { Member, Admin, Owner }
+
+          public class GroupMembership
+          {
+              public Guid Id { get; set; }
+              public Guid GroupId { get; set; }
+              public Group Group { get; set; } = null!;
+              public Guid UserId { get; set; }
+              public AppUser User { get; set; } = null!;
+              public GroupRole Role { get; set; }
+          }
+
+          public enum JoinRequestStatus { Pending, Approved, Rejected }
+
+          public class GroupJoinRequest
+          {
+              public Guid Id { get; set; }
+              public Guid GroupId { get; set; }
+              public Guid UserId { get; set; }
+              public DateTimeOffset RequestedAt { get; set; } = DateTimeOffset.UtcNow;
+              public JoinRequestStatus Status { get; set; } = JoinRequestStatus.Pending;
+              public Guid? ReviewedBy { get; set; }
+              public DateTimeOffset? ReviewedAt { get; set; }
+          }
+
+          public class Event
+          {
+              public Guid Id { get; set; }
+              public Guid GroupId { get; set; }
+              public Group Group { get; set; } = null!;
+              public string Title { get; set; } = "";
+              public string Description { get; set; } = "";
+              public DateTimeOffset StartsAt { get; set; }
+              public double Lat { get; set; }
+              public double Lng { get; set; }
+          }
+
+          public class Conversation
+          {
+              public Guid Id { get; set; }
+              public bool IsGroup { get; set; }
+              public Guid? GroupId { get; set; }
+              public ICollection<ConversationParticipant> Participants { get; set; } = new List<ConversationParticipant>();
+              public ICollection<Message> Messages { get; set; } = new List<Message>();
+          }
+
+          public class ConversationParticipant
+          {
+              public Guid Id { get; set; }
+              public Guid ConversationId { get; set; }
+              public Conversation Conversation { get; set; } = null!;
+              public Guid UserId { get; set; }
+          }
+
+          public class Message
+          {
+              public Guid Id { get; set; }
+              public Guid ConversationId { get; set; }
+              public Conversation Conversation { get; set; } = null!;
+              public Guid SenderId { get; set; }
+              public string Body { get; set; } = "";
+              public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
+          }
+
+          public class Achievement
+          {
+              public Guid Id { get; set; }
+              public string Code { get; set; } = "";
+              public string Title { get; set; } = "";
+              public string Description { get; set; } = "";
+              public int Points { get; set; }
+          }
+
+          public class UserAchievement
+          {
+              public Guid Id { get; set; }
+              public Guid UserId { get; set; }
+              public Guid AchievementId { get; set; }
+              public DateTimeOffset EarnedAt { get; set; } = DateTimeOffset.UtcNow;
+          }
+
+          public class PointsLedger
+          {
+              public Guid Id { get; set; }
+              public Guid UserId { get; set; }
+              public string Reason { get; set; } = "";
+              public int Points { get; set; }
+              public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+          }
+          EOF
+
+          cat > server/GolfTracker.Infrastructure/AppDbContext.cs <<'EOF'
+          using GolfTracker.Domain;
+          using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+          using Microsoft.EntityFrameworkCore;
+
+          namespace GolfTracker.Infrastructure;
+
+          public class AppDbContext : IdentityDbContext<AppUser, AppRole, Guid>
+          {
+              public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+              public DbSet<Profile> Profiles => Set<Profile>();
+              public DbSet<Course> Courses => Set<Course>();
+              public DbSet<Hole> Holes => Set<Hole>();
+              public DbSet<Round> Rounds => Set<Round>();
+              public DbSet<RoundHoleScore> RoundScores => Set<RoundHoleScore>();
+              public DbSet<Group> Groups => Set<Group>();
+              public DbSet<GroupMembership> GroupMemberships => Set<GroupMembership>();
+              public DbSet<GroupJoinRequest> GroupJoinRequests => Set<GroupJoinRequest>();
+              public DbSet<Event> Events => Set<Event>();
+              public DbSet<Conversation> Conversations => Set<Conversation>();
+              public DbSet<ConversationParticipant> ConversationParticipants => Set<ConversationParticipant>();
+              public DbSet<Message> Messages => Set<Message>();
+              public DbSet<Achievement> Achievements => Set<Achievement>();
+              public DbSet<UserAchievement> UserAchievements => Set<UserAchievement>();
+              public DbSet<PointsLedger> PointsLedger => Set<PointsLedger>();
+
+              protected override void OnModelCreating(ModelBuilder b)
+              {
+                  base.OnModelCreating(b);
+
+                  b.Entity<Course>()
+                      .HasIndex(x => new { x.CenterLat, x.CenterLng });
+
+                  b.Entity<GroupMembership>()
+                      .HasIndex(x => new { x.GroupId, x.UserId })
+                      .IsUnique();
+
+                  b.Entity<Hole>()
+                      .HasIndex(x => new { x.CourseId, x.Number })
+                      .IsUnique();
+
+                  b.Entity<ConversationParticipant>()
+                      .HasIndex(x => new { x.ConversationId, x.UserId })
+                      .IsUnique();
+
+                  b.Entity<Profile>()
+                      .HasOne(p => p.User)
+                      .WithOne(u => u.Profile)
+                      .HasForeignKey<Profile>(p => p.UserId);
+              }
+          }
+          EOF
+
+          cat > server/GolfTracker.Api/Program.cs <<'EOF'
+          using System.Security.Claims;
+          using GolfTracker.Domain;
+          using GolfTracker.Infrastructure;
+          using Microsoft.AspNetCore.Authorization;
+          using Microsoft.AspNetCore.Identity;
+          using Microsoft.EntityFrameworkCore;
+
+          var builder = WebApplication.CreateBuilder(args);
+          var cfg = builder.Configuration;
+
+          builder.Services.AddDbContext<AppDbContext>(o =>
+              o.UseNpgsql(cfg.GetConnectionString("Default")));
+          AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
+          builder.Services
+              .AddIdentityCore<AppUser>(o => { o.User.RequireUniqueEmail = true; })
+              .AddRoles<AppRole>()
+              .AddEntityFrameworkStores<AppDbContext>()
+              .AddSignInManager();
+
+          builder.Services.AddAuthentication()
+              .AddJwtBearer("Bearer", o =>
+              {
+                  o.TokenValidationParameters = JwtOptions.CreateValidationParameters(cfg);
+              });
+
+          builder.Services.AddAuthorization();
+
+          builder.Services.AddSignalR();
+          builder.Services.AddControllers();
+          builder.Services.AddEndpointsApiExplorer();
+          builder.Services.AddSwaggerGen();
+          builder.Services.AddHttpClient();
+
+          builder.Services.AddCors(o =>
+          {
+              o.AddPolicy("spa", p =>
+                  p.WithOrigins("http://localhost:5173")
+                   .AllowAnyHeader()
+                   .AllowAnyMethod()
+                   .AllowCredentials());
+          });
+
+          builder.Services.AddHostedService<OverpassImportService>();
+
+          var app = builder.Build();
+
+          app.UseSwagger();
+          app.UseSwaggerUI();
+
+          app.UseCors("spa");
+          app.UseAuthentication();
+          app.UseAuthorization();
+
+          app.MapControllers();
+          app.MapHub<ChatHub>("/hubs/chat");
+
+          using (var scope = app.Services.CreateScope())
+          {
+              var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+              db.Database.Migrate();
+
+              if (!db.Achievements.Any())
+              {
+                  db.Achievements.AddRange(
+                      new Achievement { Id = Guid.NewGuid(), Code = "FIRST_ROUND", Title = "First Round", Description = "Finish your first round", Points = 50 },
+                      new Achievement { Id = Guid.NewGuid(), Code = "PLAY_10_ROUNDS", Title = "Regular", Description = "Finish 10 rounds", Points = 150 }
+                  );
+                  db.SaveChanges();
+              }
+          }
+
+          app.Run();
+
+          public partial class Program { }
+          EOF
+
+          cat > server/GolfTracker.Api/appsettings.json <<'EOF'
+          {
+            "Logging": {
+              "LogLevel": {
+                "Default": "Information",
+                "Microsoft.AspNetCore": "Information"
+              }
+            }
+          }
+          EOF
+
+          cat > server/GolfTracker.Api/appsettings.Development.json <<EOF
+          {
+            "ConnectionStrings": {
+              "Default": "Host=localhost;Port=${DB_PORT};Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASS}"
+            },
+            "Jwt": {
+              "Issuer": "golftracker",
+              "Audience": "golftracker",
+              "Key": "CHANGE_ME_TO_A_LONG_RANDOM_SECRET_32_BYTES_MIN"
+            },
+            "AllowedHosts": "*"
+          }
+          EOF
+
+          mkdir -p server/GolfTracker.Api/Hubs
+          cat > server/GolfTracker.Api/Hubs/ChatHub.cs <<'EOF'
+          using System.Security.Claims;
+          using Microsoft.AspNetCore.SignalR;
+
+          public class ChatHub : Hub
+          {
+              public override async Task OnConnectedAsync()
+              {
+                  var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                  if (Guid.TryParse(userId, out var uid))
+                  {
+                      await Groups.AddToGroupAsync(Context.ConnectionId, $"user:{uid}");
+                  }
+                  await base.OnConnectedAsync();
+              }
+
+              public async Task JoinGroupRoom(Guid groupId)
+              {
+                  await Groups.AddToGroupAsync(Context.ConnectionId, $"group:{groupId}");
+              }
+
+              public async Task LeaveGroupRoom(Guid groupId)
+              {
+                  await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"group:{groupId}");
+              }
+
+              public async Task SendToConversation(Guid conversationId, string message)
+              {
+                  await Clients.Group($"conv:{conversationId}").SendAsync("message", new {
+                      conversationId, message, sentAt = DateTimeOffset.UtcNow
+                  });
+              }
+
+              public async Task JoinConversation(Guid conversationId)
+              {
+                  await Groups.AddToGroupAsync(Context.ConnectionId, $"conv:{conversationId}");
+              }
+          }
+          EOF
+
+          mkdir -p server/GolfTracker.Api/Services
+          cat > server/GolfTracker.Api/Services/OverpassImportService.cs <<'EOF'
+          using System.Text.Json;
+          using GolfTracker.Infrastructure;
+
+          public class OverpassImportService : BackgroundService
+          {
+              private readonly IServiceProvider _sp;
+              private readonly ILogger<OverpassImportService> _log;
+              private readonly HttpClient _http;
+
+              public OverpassImportService(IServiceProvider sp, ILogger<OverpassImportService> log, IHttpClientFactory f)
+              {
+                  _sp = sp; _log = log; _http = f.CreateClient();
+              }
+
+              protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+              {
+                  await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                  while (!stoppingToken.IsCancellationRequested)
+                  {
+                      try { await ImportOnce(stoppingToken); }
+                      catch (Exception ex) { _log.LogError(ex, "Overpass import failed"); }
+                      await Task.Delay(TimeSpan.FromDays(1), stoppingToken);
+                  }
+              }
+
+              private async Task ImportOnce(CancellationToken ct)
+              {
+                  using var scope = _sp.CreateScope();
+                  var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                  var query = "[out:json][timeout:25];area[name=\"United States\"];(node[leisure=golf_course](area);way[leisure=golf_course](area);relation[leisure=golf_course](area););out center 200;";
+                  using var content = new StringContent(query);
+                  var resp = await _http.PostAsync("https://overpass-api.de/api/interpreter", content, ct);
+                  if (!resp.IsSuccessStatusCode) return;
+
+                  var json = await resp.Content.ReadAsStringAsync(ct);
+                  using var doc = JsonDocument.Parse(json);
+
+                  foreach (var el in doc.RootElement.GetProperty("elements").EnumerateArray())
+                  {
+                      var hasTags = el.TryGetProperty("tags", out var tags);
+                      var name = hasTags && tags.TryGetProperty("name", out var n) ? n.GetString() : null;
+                      if (string.IsNullOrWhiteSpace(name)) continue;
+
+                      string osmId = $"{el.GetProperty("type").GetString()}:{el.GetProperty("id").GetInt64()}";
+
+                      double lat, lon;
+                      if (el.TryGetProperty("center", out var center))
+                      {
+                          lat = center.GetProperty("lat").GetDouble();
+                          lon = center.GetProperty("lon").GetDouble();
+                      }
+                      else if (el.TryGetProperty("lat", out var nlat) && el.TryGetProperty("lon", out var nlon))
+                      {
+                          lat = nlat.GetDouble(); lon = nlon.GetDouble();
+                      }
+                      else continue;
+
+                      if (await db.Courses.AnyAsync(c => c.OSMId == osmId, ct)) continue;
+
+                      db.Courses.Add(new GolfTracker.Domain.Course
+                      {
+                          Id = Guid.NewGuid(),
+                          Name = name!,
+                          OSMId = osmId,
+                          CenterLat = lat,
+                          CenterLng = lon
+                      });
+                  }
+
+                  await db.SaveChangesAsync(ct);
+              }
+          }
+          EOF
+
+          mkdir -p server/GolfTracker.Api/Auth
+          cat > server/GolfTracker.Api/Auth/JwtOptions.cs <<'EOF'
+          using System.IdentityModel.Tokens.Jwt;
+          using System.Security.Claims;
+          using System.Text;
+          using GolfTracker.Domain;
+          using Microsoft.Extensions.Configuration;
+          using Microsoft.IdentityModel.Tokens;
+
+          public static class JwtOptions
+          {
+              public static TokenValidationParameters CreateValidationParameters(IConfiguration cfg)
+              {
+                  var key = cfg["Jwt:Key"]!;
+                  return new TokenValidationParameters
+                  {
+                      ValidateIssuer = true,
+                      ValidateAudience = true,
+                      ValidateIssuerSigningKey = true,
+                      ValidateLifetime = true,
+                      ValidIssuer = cfg["Jwt:Issuer"],
+                      ValidAudience = cfg["Jwt:Audience"],
+                      IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
+                  };
+              }
+
+              public static string CreateToken(IConfiguration cfg, AppUser user)
+              {
+                  var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(cfg["Jwt:Key"]!));
+                  var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+                  var claims = new List<Claim>
+                  {
+                      new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                      new Claim(ClaimTypes.Email, user.Email ?? ""),
+                      new Claim(ClaimTypes.Name, user.UserName ?? user.Email ?? "")
+                  };
+
+                  var token = new JwtSecurityToken(
+                      issuer: cfg["Jwt:Issuer"],
+                      audience: cfg["Jwt:Audience"],
+                      claims: claims,
+                      expires: DateTime.UtcNow.AddDays(7),
+                      signingCredentials: creds
+                  );
+                  return new JwtSecurityTokenHandler().WriteToken(token);
+              }
+          }
+          EOF
+
+          mkdir -p server/GolfTracker.Api/Controllers
+          cat > server/GolfTracker.Api/Controllers/CoursesController.cs <<'EOF'
+          using GolfTracker.Infrastructure;
+          using Microsoft.AspNetCore.Mvc;
+          using Microsoft.EntityFrameworkCore;
+
+          namespace GolfTracker.Api.Controllers;
+
+          [ApiController, Route("api/courses")]
+          public class CoursesController : ControllerBase
+          {
+              private readonly AppDbContext _db;
+              public CoursesController(AppDbContext db) { _db = db; }
+
+              [HttpGet]
+              public async Task<IActionResult> Nearby([FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radiusKm = 50)
+              {
+                  var deg = radiusKm / 111.0;
+                  var items = await _db.Courses
+                      .Where(c => c.CenterLat >= lat - deg && c.CenterLat <= lat + deg &&
+                                  c.CenterLng >= lng - deg && c.CenterLng <= lng + deg)
+                      .Select(c => new {
+                          c.Id, c.Name, centerLat = c.CenterLat, centerLng = c.CenterLng, c.Par, c.HoleCount, c.TotalYardage
+                      })
+                      .ToListAsync();
+                  return Ok(items);
+              }
+
+              [HttpGet("{id:guid}")]
+              public async Task<IActionResult> Get(Guid id)
+              {
+                  var c = await _db.Courses.Include(x => x.Holes).FirstOrDefaultAsync(x => x.Id == id);
+                  if (c == null) return NotFound();
+                  return Ok(new {
+                      c.Id, c.Name, c.CenterLat, c.CenterLng, c.Par, c.HoleCount, c.TotalYardage,
+                      holes = c.Holes.OrderBy(h => h.Number).Select(h => new {
+                          h.Number, h.Par, h.Yardage, h.Handicap
+                      })
+                  });
+              }
+          }
+          EOF
+
+          cat > server/GolfTracker.Api/Controllers/RoundsController.cs <<'EOF'
+          using System.Security.Claims;
+          using GolfTracker.Domain;
+          using GolfTracker.Infrastructure;
+          using Microsoft.AspNetCore.Authorization;
+          using Microsoft.AspNetCore.Mvc;
+          using Microsoft.EntityFrameworkCore;
+
+          namespace GolfTracker.Api.Controllers;
+
+          [ApiController, Route("api/rounds")]
+          public class RoundsController : ControllerBase
+          {
+              private readonly AppDbContext _db;
+              public RoundsController(AppDbContext db) { _db = db; }
+
+              [HttpPost]
+              [Authorize]
+              public async Task<IActionResult> Start([FromBody] StartRoundDto dto)
+              {
+                  var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                  var round = new Round {
+                      Id = Guid.NewGuid(),
+                      UserId = userId,
+                      CourseId = dto.CourseId,
+                      StartedAt = DateTimeOffset.UtcNow
+                  };
+                  _db.Rounds.Add(round);
+                  await _db.SaveChangesAsync();
+                  return Ok(round.Id);
+              }
+
+              [HttpPost("{id:guid}/score")]
+              [Authorize]
+              public async Task<IActionResult> Score(Guid id, [FromBody] ScoreHoleDto dto)
+              {
+                  var round = await _db.Rounds.Include(r => r.Scores).FirstOrDefaultAsync(r => r.Id == id);
+                  if (round == null) return NotFound();
+
+                  var existing = round.Scores.FirstOrDefault(s => s.HoleNumber == dto.HoleNumber);
+                  if (existing == null)
+                  {
+                      existing = new RoundHoleScore {
+                          Id = Guid.NewGuid(), RoundId = id, HoleNumber = dto.HoleNumber
+                      };
+                      round.Scores.Add(existing);
+                  }
+                  existing.Strokes = dto.Strokes;
+                  existing.Putts = dto.Putts;
+                  existing.FairwayHit = dto.FairwayHit;
+                  existing.Gir = dto.GIR;
+
+                  round.TotalScore = round.Scores.Sum(s => s.Strokes);
+                  round.PuttsTotal = round.Scores.Where(s => s.Putts.HasValue).Sum(s => s.Putts!.Value);
+
+                  await _db.SaveChangesAsync();
+                  return Ok();
+              }
+
+              [HttpPost("{id:guid}/finish")]
+              [Authorize]
+              public async Task<IActionResult> Finish(Guid id)
+              {
+                  var round = await _db.Rounds.FindAsync(id);
+                  if (round == null) return NotFound();
+                  round.FinishedAt = DateTimeOffset.UtcNow;
+                  await _db.SaveChangesAsync();
+
+                  var count = await _db.Rounds.CountAsync(r => r.UserId == round.UserId && r.FinishedAt != null);
+                  if (count == 1)
+                  {
+                      var ach = await _db.Achievements.FirstOrDefaultAsync(a => a.Code == "FIRST_ROUND");
+                      if (ach != null)
+                      {
+                          _db.UserAchievements.Add(new UserAchievement { UserId = round.UserId, AchievementId = ach.Id });
+                          _db.PointsLedger.Add(new PointsLedger { UserId = round.UserId, Reason = "FIRST_ROUND", Points = ach.Points });
+                          await _db.SaveChangesAsync();
+                      }
+                  }
+
+                  return Ok();
+              }
+          }
+
+          public record StartRoundDto(Guid CourseId);
+          public record ScoreHoleDto(int HoleNumber, int Strokes, int? Putts, bool FairwayHit, bool GIR);
+          EOF
+
+          cat > server/GolfTracker.Api/Controllers/GroupsController.cs <<'EOF'
+          using System.Security.Claims;
+          using GolfTracker.Domain;
+          using GolfTracker.Infrastructure;
+          using Microsoft.AspNetCore.Authorization;
+          using Microsoft.AspNetCore.Mvc;
+          using Microsoft.EntityFrameworkCore;
+
+          namespace GolfTracker.Api.Controllers;
+
+          [ApiController, Route("api/groups")]
+          public class GroupsController : ControllerBase
+          {
+              private readonly AppDbContext _db;
+              public GroupsController(AppDbContext db) { _db = db; }
+
+              [HttpGet("search")]
+              public async Task<IActionResult> Search([FromQuery] string q = "", [FromQuery] double? lat = null, [FromQuery] double? lng = null, [FromQuery] int take = 20)
+              {
+                  var query = _db.Groups.AsQueryable();
+                  if (!string.IsNullOrWhiteSpace(q))
+                      query = query.Where(g => EF.Functions.ILike(g.Name, $"%{q}%"));
+
+                  if (lat.HasValue && lng.HasValue)
+                  {
+                      var deg = 100 / 111.0;
+                      query = query.Where(g => g.HomeLat >= lat - deg && g.HomeLat <= lat + deg &&
+                                               g.HomeLng >= lng - deg && g.HomeLng <= lng + deg);
+                  }
+
+                  var results = await query.OrderBy(g => g.Name).Take(take).Select(g => new {
+                      g.Id, g.Name, g.Description, lat = g.HomeLat, lng = g.HomeLng
+                  }).ToListAsync();
+
+                  return Ok(results);
+              }
+
+              [HttpPost("{groupId:guid}/join")]
+              [Authorize]
+              public async Task<IActionResult> RequestJoin(Guid groupId)
+              {
+                  var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+                  var exists = await _db.GroupJoinRequests
+                      .AnyAsync(r => r.GroupId == groupId && r.UserId == userId && r.Status == JoinRequestStatus.Pending);
+                  if (exists) return Conflict("Request already pending.");
+
+                  _db.GroupJoinRequests.Add(new GroupJoinRequest { GroupId = groupId, UserId = userId });
+                  await _db.SaveChangesAsync();
+                  return Ok();
+              }
+
+              [HttpPost("{groupId:guid}/requests/{requestId:guid}/approve")]
+              [Authorize]
+              public async Task<IActionResult> Approve(Guid groupId, Guid requestId)
+              {
+                  var req = await _db.GroupJoinRequests.FindAsync(requestId);
+                  if (req == null || req.GroupId != groupId) return NotFound();
+
+                  req.Status = JoinRequestStatus.Approved;
+                  req.ReviewedAt = DateTimeOffset.UtcNow;
+
+                  _db.GroupMemberships.Add(new GroupMembership { GroupId = groupId, UserId = req.UserId, Role = GroupRole.Member });
+                  await _db.SaveChangesAsync();
+                  return Ok();
+              }
+          }
+          EOF
+
+          cat > server/GolfTracker.Api/Controllers/UsersController.cs <<'EOF'
+          using System.Security.Claims;
+          using GolfTracker.Infrastructure;
+          using Microsoft.AspNetCore.Authorization;
+          using Microsoft.AspNetCore.Mvc;
+          using Microsoft.EntityFrameworkCore;
+
+          namespace GolfTracker.Api.Controllers;
+
+          [ApiController, Route("api/users")]
+          public class UsersController : ControllerBase
+          {
+              private readonly AppDbContext _db;
+              public UsersController(AppDbContext db) { _db = db; }
+
+              [HttpPost("location")]
+              [Authorize]
+              public async Task<IActionResult> UpdateLocation([FromBody] LocationDto dto)
+              {
+                  var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                  var profile = await _db.Profiles.FirstAsync(p => p.UserId == userId);
+                  if (!profile.ShareLocation) return Forbid();
+                  profile.LastLat = dto.Lat;
+                  profile.LastLng = dto.Lng;
+                  profile.LastLocationAt = DateTimeOffset.UtcNow;
+                  await _db.SaveChangesAsync();
+                  return Ok();
+              }
+
+              [HttpGet("nearby")]
+              public async Task<IActionResult> Nearby([FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radiusKm = 25)
+              {
+                  var deg = radiusKm / 111.0;
+                  var users = await _db.Profiles.Where(p => p.ShareLocation == true &&
+                      p.LastLat >= lat - deg && p.LastLat <= lat + deg && p.LastLng >= lng - deg && p.LastLng <= lng + deg)
+                      .Select(p => new { p.UserId, p.DisplayName, lat = p.LastLat, lng = p.LastLng, p.AvatarUrl })
+                      .ToListAsync();
+
+                  var groups = await _db.Groups.Where(g => g.HomeLat >= lat - deg && g.HomeLat <= lat + deg &&
+                                                           g.HomeLng >= lng - deg && g.HomeLng <= lng + deg)
+                      .Select(g => new { g.Id, g.Name, lat = g.HomeLat, lng = g.HomeLng })
+                      .ToListAsync();
+
+                  var eventsQ = await _db.Events.Where(e => e.Lat >= lat - deg && e.Lat <= lat + deg &&
+                                                            e.Lng >= lng - deg && e.Lng <= lng + deg)
+                      .Select(e => new { e.Id, e.Title, e.Lat, e.Lng, e.StartsAt, e.GroupId })
+                      .ToListAsync();
+
+                  return Ok(new { users, groups, eventsQ });
+              }
+          }
+
+          public record LocationDto(double Lat, double Lng);
+          EOF
+
+          cat > server/GolfTracker.Api/Controllers/ProfileController.cs <<'EOF'
+          using System.Security.Claims;
+          using GolfTracker.Infrastructure;
+          using Microsoft.AspNetCore.Authorization;
+          using Microsoft.AspNetCore.Mvc;
+          using Microsoft.EntityFrameworkCore;
+
+          namespace GolfTracker.Api.Controllers;
+
+          [ApiController, Route("api/profile")]
+          [Authorize]
+          public class ProfileController : ControllerBase
+          {
+              private readonly AppDbContext _db;
+              public ProfileController(AppDbContext db) { _db = db; }
+
+              [HttpGet]
+              public async Task<IActionResult> Get()
+              {
+                  var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                  var p = await _db.Profiles.FirstOrDefaultAsync(x => x.UserId == userId);
+                  if (p == null) return NotFound();
+                  return Ok(new { p.DisplayName, p.AvatarUrl, p.ShareLocation, p.Units });
+              }
+
+              [HttpPut]
+              public async Task<IActionResult> Update([FromBody] UpdateProfileDto dto)
+              {
+                  var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                  var p = await _db.Profiles.FirstOrDefaultAsync(x => x.UserId == userId);
+                  if (p == null) return NotFound();
+                  p.ShareLocation = dto.ShareLocation;
+                  p.Units = dto.Units;
+                  if (!string.IsNullOrWhiteSpace(dto.DisplayName)) p.DisplayName = dto.DisplayName!;
+                  await _db.SaveChangesAsync();
+                  return Ok();
+              }
+          }
+
+          public record UpdateProfileDto(string? DisplayName, bool ShareLocation, string Units);
+          EOF
+
+          cat > server/GolfTracker.Api/Controllers/AuthController.cs <<'EOF'
+          using GolfTracker.Domain;
+          using GolfTracker.Infrastructure;
+          using Microsoft.AspNetCore.Identity;
+          using Microsoft.AspNetCore.Mvc;
+          using Microsoft.EntityFrameworkCore;
+
+          namespace GolfTracker.Api.Controllers;
+
+          [ApiController, Route("api/auth")]
+          public class AuthController : ControllerBase
+          {
+              private readonly UserManager<AppUser> _userManager;
+              private readonly IConfiguration _cfg;
+              private readonly AppDbContext _db;
+
+              public AuthController(UserManager<AppUser> userManager, IConfiguration cfg, AppDbContext db)
+              {
+                  _userManager = userManager; _cfg = cfg; _db = db;
+              }
+
+              [HttpPost("register")]
+              public async Task<IActionResult> Register([FromBody] RegisterDto dto)
+              {
+                  var exists = await _userManager.Users.AnyAsync(u => u.Email == dto.Email);
+                  if (exists) return Conflict("Email already in use");
+
+                  var user = new AppUser
+                  {
+                      Id = Guid.NewGuid(),
+                      Email = dto.Email,
+                      UserName = dto.Email
+                  };
+                  var res = await _userManager.CreateAsync(user, dto.Password);
+                  if (!res.Succeeded) return BadRequest(res.Errors);
+
+                  _db.Profiles.Add(new Profile { Id = Guid.NewGuid(), UserId = user.Id, DisplayName = dto.DisplayName ?? dto.Email! });
+                  await _db.SaveChangesAsync();
+
+                  var token = JwtOptions.CreateToken(_cfg, user);
+                  return Ok(new { token });
+              }
+
+              [HttpPost("login")]
+              public async Task<IActionResult> Login([FromBody] LoginDto dto)
+              {
+                  var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+                  if (user == null) return Unauthorized();
+                  var ok = await _userManager.CheckPasswordAsync(user, dto.Password);
+                  if (!ok) return Unauthorized();
+                  var token = JwtOptions.CreateToken(_cfg, user);
+                  return Ok(new { token });
+              }
+          }
+
+          public record RegisterDto(string Email, string Password, string? DisplayName);
+          public record LoginDto(string Email, string Password);
+          EOF
+
+          echo "Scaffolding React app..."
+          pushd web >/dev/null
+          npm create vite@latest . -- --template react-ts >/dev/null 2>&1
+          npm i >/dev/null 2>&1
+          npm i maplibre-gl @microsoft/signalr mapillary-js axios sass >/dev/null 2>&1
+
+          cat > .env.example <<'EOF'
+          VITE_API=http://localhost:5000
+          VITE_MAPILLARY_KEY=
+          EOF
+
+          cat > src/config.ts <<'EOF'
+          export const API_BASE = import.meta.env.VITE_API ?? "http://localhost:5000";
+          export const SIGNALR_HUB = `${API_BASE}/hubs/chat`;
+          export const MAPILLARY_KEY = (import.meta.env.VITE_MAPILLARY_KEY as string) || "";
+          EOF
+
+          mkdir -p src/components src/chat src/pages
+          cat > src/components/MapView.tsx <<'EOF'
+          import React, { useEffect, useRef, useState } from "react";
+          import maplibregl, { Map, Marker } from "maplibre-gl";
+          import "maplibre-gl/dist/maplibre-gl.css";
+          import axios from "axios";
+          import { API_BASE, MAPILLARY_KEY } from "../config";
+          import { Viewer } from "mapillary-js";
+          import "mapillary-js/dist/mapillary.css";
+
+          type Item = { id: string; name?: string; title?: string; lat: number; lng: number; type: "course" | "user" | "event" | "group" };
+
+          export default function MapView() {
+            const mapRef = useRef<Map | null>(null);
+            const containerRef = useRef<HTMLDivElement>(null);
+            const [items, setItems] = useState<Item[]>([]);
+            const mlyRef = useRef<Viewer | null>(null);
+
+            useEffect(() => {
+              if (mapRef.current || !containerRef.current) return;
+              const map = new maplibregl.Map({
+                container: containerRef.current,
+                style: "https://demotiles.maplibre.org/style.json",
+                center: [-122.4194, 37.7749],
+                zoom: 10,
+              });
+              mapRef.current = map;
+
+              map.on("load", refresh);
+              map.on("moveend", refresh);
+
+              return () => map.remove();
+            }, []);
+
+            async function refresh() {
+              const map = mapRef.current!;
+              const center = map.getCenter();
+              const lat = center.lat, lng = center.lng;
+
+              const [courses, nearby] = await Promise.all([
+                axios.get(`${API_BASE}/api/courses`, { params: { lat, lng, radiusKm: 50 } }).then(r => r.data as any[]),
+                axios.get(`${API_BASE}/api/users/nearby`, { params: { lat, lng, radiusKm: 50 } }).then(r => r.data),
+              ]);
+
+              const merged: Item[] = [
+                ...courses.map(c => ({ id: c.id, name: c.name, lat: c.centerLat, lng: c.centerLng, type: "course" as const })),
+                ...(nearby.users ?? []).map((u: any) => ({ id: u.userId, name: u.displayName, lat: u.lat, lng: u.lng, type: "user" as const })),
+                ...(nearby.groups ?? []).map((g: any) => ({ id: g.id, name: g.name, lat: g.lat, lng: g.lng, type: "group" as const })),
+                ...(nearby.eventsQ ?? []).map((e: any) => ({ id: e.id, title: e.title, lat: e.lat, lng: e.lng, type: "event" as const })),
+              ];
+
+              setItems(merged);
+              renderMarkers(merged);
+            }
+
+            function renderMarkers(items: Item[]) {
+              const map = mapRef.current!;
+              document.querySelectorAll(".custom-marker").forEach(el => el.remove());
+
+              items.forEach(it => {
+                const el = document.createElement("div");
+                el.className = "custom-marker";
+                el.style.width = "14px";
+                el.style.height = "14px";
+                el.style.borderRadius = "50%";
+                el.style.border = "2px solid white";
+                el.style.boxShadow = "0 0 2px rgba(0,0,0,0.4)";
+                el.style.background = it.type === "course" ? "#2b7" : it.type === "user" ? "#39f" : it.type === "group" ? "#f93" : "#e33";
+                el.title = it.name ?? it.title ?? "";
+
+                el.addEventListener("click", () => {
+                  openStreetView(it.lat, it.lng);
+                });
+
+                new Marker({ element: el }).setLngLat([it.lng, it.lat]).addTo(map);
+              });
+            }
+
+            async function openStreetView(lat: number, lng: number) {
+              if (!MAPILLARY_KEY) return alert("Set VITE_MAPILLARY_KEY to enable street view");
+              const panel = document.getElementById("streetview")!;
+              if (!mlyRef.current) {
+                mlyRef.current = new Viewer({
+                  container: "streetview",
+                  accessToken: MAPILLARY_KEY,
+                });
+              }
+              await mlyRef.current!.moveCloseTo(lng, lat);
+              panel.classList.add("open");
+            }
+
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 420px", height: "calc(100vh - 50px)" }}>
+                <div ref={containerRef} />
+                <div id="streetview" style={{ width: 420, height: "100%", borderLeft: "1px solid #ccc" }} />
+              </div>
+            );
+          }
+          EOF
+
+          cat > src/components/CourseCard.tsx <<'EOF'
+          import React, { useEffect, useState } from "react";
+          import axios from "axios";
+          import { API_BASE } from "../config";
+
+          export default function CourseCard({ courseId }: { courseId: string }) {
+            const [course, setCourse] = useState<any>(null);
+
+            useEffect(() => {
+              axios.get(`${API_BASE}/api/courses/${courseId}`).then(r => setCourse(r.data));
+            }, [courseId]);
+
+            if (!course) return <div>Loading...</div>;
+
+            return (
+              <div className="course-card">
+                <h3>{course.name}</h3>
+                <div>Par: {course.par ?? "-"}</div>
+                <div>Holes: {course.holeCount ?? course.holes.length}</div>
+                <div>Total Yardage: {course.totalYardage ?? "-"}</div>
+                <hr />
+                <div style={{ maxHeight: 200, overflow: "auto" }}>
+                  {course.holes.map((h: any) => (
+                    <div key={h.number} style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>Hole {h.number}</span>
+                      <span>Par {h.par}</span>
+                      <span>{h.yardage} yds</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+          EOF
+
+          cat > src/chat/chat.ts <<'EOF'
+          import * as signalR from "@microsoft/signalr";
+          import { SIGNALR_HUB } from "../config";
+
+          let connection: signalR.HubConnection | null = null;
+
+          export function initChat(token?: string) {
+            connection = new signalR.HubConnectionBuilder()
+              .withUrl(SIGNALR_HUB, { accessTokenFactory: () => token ?? "" })
+              .withAutomaticReconnect()
+              .build();
+
+            connection.on("message", (payload) => {
+              console.log("New message", payload);
+            });
+
+            connection.start().catch(console.error);
+            return connection;
+          }
+
+          export function joinConversation(conversationId: string) {
+            connection?.invoke("JoinConversation", conversationId);
+          }
+
+          export function sendMessage(conversationId: string, message: string) {
+            return connection?.invoke("SendToConversation", conversationId, message);
+          }
+          EOF
+
+          cat > src/pages/Settings.tsx <<'EOF'
+          import React, { useState } from "react";
+          import axios from "axios";
+          import { API_BASE } from "../config";
+
+          export default function Settings() {
+            const [shareLocation, setShareLocation] = useState(false);
+            const [units, setUnits] = useState<"yards" | "meters">("yards");
+            const [token, setToken] = useState("");
+
+            function save() {
+              axios.put(`${API_BASE}/api/profile`, { shareLocation, units }, { headers: { Authorization: `Bearer ${token}` } })
+                .then(() => alert("Saved"))
+                .catch(err => alert(err?.response?.data ?? err.message));
+            }
+
+            function updateLocation() {
+              navigator.geolocation.getCurrentPosition(pos => {
+                axios.post(`${API_BASE}/api/users/location`, { lat: pos.coords.latitude, lng: pos.coords.longitude }, { headers: { Authorization: `Bearer ${token}` } })
+                  .catch(err => alert(err?.response?.data ?? err.message));
+              });
+            }
+
+            return (
+              <div style={{ padding: 16 }}>
+                <h2>Settings</h2>
+                <div>
+                  JWT Token: <input type="password" placeholder="Bearer token" value={token} onChange={e => setToken(e.target.value)} style={{ width: 400 }} />
+                </div>
+                <label><input type="checkbox" checked={shareLocation} onChange={e => setShareLocation(e.target.checked)} /> Share my location</label>
+                <div>
+                  Units:
+                  <select value={units} onChange={e => setUnits(e.target.value as any)}>
+                    <option value="yards">Yards</option>
+                    <option value="meters">Meters</option>
+                  </select>
+                </div>
+                <button onClick={save}>Save</button>
+                <button onClick={updateLocation} disabled={!shareLocation}>Update my location</button>
+              </div>
+            );
+          }
+          EOF
+
+          cat > src/App.tsx <<'EOF'
+          import React from "react";
+          import MapView from "./components/MapView";
+          import Settings from "./pages/Settings";
+
+          function App() {
+            const [tab, setTab] = React.useState<"map" | "settings">("map");
+            return (
+              <div>
+                <div style={{ display: "flex", gap: 12, padding: 8, borderBottom: "1px solid #ddd" }}>
+                  <strong>GolfTracker</strong>
+                  <button onClick={() => setTab("map")}>Map</button>
+                  <button onClick={() => setTab("settings")}>Settings</button>
+                  <a href="http://localhost:5000/swagger" target="_blank" rel="noreferrer">API Docs</a>
+                </div>
+                {tab === "map" ? <MapView /> : <Settings />}
+              </div>
+            );
+          }
+
+          export default App;
+          EOF
+
+          popd >/dev/null
+
+          # Optional: dotnet-ef for devs; ignore errors on CI
+          dotnet tool update --global dotnet-ef || true
+
+          echo "Skeleton generated."
+          SCRIPT
+
+          chmod +x create_repo.sh
+          ./create_repo.sh
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: bootstrap/golftracker
+          title: "Bootstrap GolfTracker skeleton"
+          commit-message: "Bootstrap GolfTracker skeleton"
+          body: |
+            This PR adds the full .NET + React monorepo:
+            - ASP.NET Core 8 API + EF Core (Postgres) + SignalR
+            - React + Vite + TS + MapLibre + Mapillary + SignalR client
+            - Docker compose for Postgres
+            After merge:
+            - docker compose up -d
+            - cd server/GolfTracker.Api && dotnet ef migrations add Initial --project ../GolfTracker.Infrastructure --startup-project . && dotnet ef database update --project ../GolfTracker.Infrastructure --startup-project . && dotnet run
+            - cd web && cp .env.example .env && npm run dev
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
